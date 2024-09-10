@@ -1,0 +1,3107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小学英语单词</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #C7EDCC;
+        }
+	li {
+            display: inline-block;
+            margin-right: 10px; /* Add some space between items */
+}
+
+        .word-container {
+            text-align: center;
+            margin-bottom: 50px;
+			margin-top:20px;
+        }
+        .word {
+            font-size: 8em;
+            margin-bottom: 10px;
+			cursor: pointer;
+        }
+        .phonetic {
+            font-size: 1.5em;
+            margin-bottom: 10px;
+			cursor: pointer;
+        }
+        .meaning {
+	        user-select: none; /* 标准属性 */
+                -moz-user-select: none; /* Firefox */
+                -webkit-user-select: none; /* Chrome/Safari/Opera */
+               -ms-user-select: none; /* IE/Edge */
+                font-size: 3em;
+                margin-bottom: 10px;
+	        list-style: none;
+        }
+        .controls {
+	   margin-top:10px;
+            display: flex;
+            justify-content: space-between;
+            width: 600px;
+        }
+		.progress-container {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            max-width: 1000px;
+            margin-bottom: 10px;
+        }
+		 .progress-container input {
+            flex-grow: 1;
+            margin: 0 10px;
+			margin-top:10px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 1.5em;
+            cursor: pointer;
+        }
+        .audio-options {
+            margin-top: 10px;
+        }
+		.col-con {
+		   margin-top:50px;
+		}
+		.prevbt{
+		   width:200px;
+		}
+		.nextbt{
+		   width:200px;
+		}
+		
+		.phtic {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+		  margin:20px;
+        }
+		.phonetic-img{
+		    font-size: 1.5em;
+            margin-bottom: 10px;
+		  }
+		.bingimg{
+		font-size:0.5em;
+		cursor: pointer;
+            color: blue;
+            text-decoration: underline;
+	
+		}
+		.example-container {
+            margin-top: 20px;
+            font-size: 1.5em;
+            color: #333;
+        }
+        .example-container p {
+            margin: 5px 0;
+        }
+        .example-sentence {
+            font-weight: bold;
+	    cursor: pointer;
+        }
+        .example-translation {
+            color: gray;
+        }
+	 select, input[type="number"] {
+            font-size: 16px;
+            margin-bottom: 20px;
+        }	
+    </style>
+</head>
+<body>
+<div class="progress-container">
+    <span id="current-progress">1</span>
+    <input type="range" id="progress-bar" min="1" max="1" value="1">
+    <span id="total-progress">1</span>
+</div>
+<div class="word-container">
+        <li >
+             <div id="word" class="word">Word</div>
+	     <a id="bingimg" href="#" target="_blank">必应词典查询</a>
+	</li>
+	<li class="phtic">
+	  <div id="phonetic" class="phonetic">[Phonetic]</div>
+	  <div id="phonetic-img" >🔊 </div>
+	</li >
+    <div id="meaning" class="meaning">Meaning</div>
+	<div class="example-container">
+        <p class="example-sentence" id="example-en">Loading sentence...</p>
+        <p class="example-translation">Loading translation...</p>
+    </div>
+    <div id="coltv"></div>
+    <div class="audio-options">
+     <!--
+	 <label>
+            <input type="radio" name="accent" value="0" checked> 美式
+        </label>
+        <label>
+            <input type="radio" name="accent" value="1">英式
+        </label>
+		-->
+    </div>
+</div>
+
+<div class="controls">
+    <button id="prev" class="prevbt">上一个</button>
+	<button id="see-chin">中文</button>
+    <button id="next" class="nextbt">下一个</button>
+</div>
+
+<li class="col-con">
+<button id="favorite-word">❤️ 收藏</button>
+<button id="view-favorites">📂 收藏夹</button>
+</li>
+<label for="rate-control" >语速:</label>
+    <input type="number" id="rate-control" min="0.2" max="2" step="0.1" value="0.8">
+<label for="voice-select">Select Voice:</label>
+<select id="voice-select">
+        <option value="">Default Voice</option>
+    </select>
+<script>
+        let voices = [];
+        let utterance;
+		let loopCount = 0;
+        let currentLoop = 0;
+		// Fetch available voices
+        function populateVoiceList() {
+            voices = window.speechSynthesis.getVoices();
+            const voiceSelect = document.getElementById('voice-select');
+            voiceSelect.innerHTML = ''; // Clear previous options
+            const defaultOption = document.createElement('option');
+            defaultOption.value = '';
+            defaultOption.textContent = 'Default Voice';
+            voiceSelect.appendChild(defaultOption);
+
+            voices.forEach((voice, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = `${voice.name} (${voice.lang})`;
+                if (voice.default) {
+                    option.textContent += ' [default]';
+                }
+                voiceSelect.appendChild(option);
+            });
+
+            // Restore the last selected voice from localStorage if available
+            const savedVoiceIndex = localStorage.getItem('selectedVoice');
+            if (savedVoiceIndex && voices[savedVoiceIndex]) {
+                voiceSelect.value = savedVoiceIndex;
+				
+            }
+        }
+		// Update voice list when available
+        window.speechSynthesis.onvoiceschanged = populateVoiceList;
+
+        // Save selected voice to localStorage when changed
+        document.getElementById('voice-select').addEventListener('change', () => {
+            const selectedVoiceIndex = document.getElementById('voice-select').value;
+            localStorage.setItem('selectedVoice', selectedVoiceIndex);
+        });
+		function createUtterance(text) {
+            utterance = new SpeechSynthesisUtterance(text);
+
+            // Set the selected voice
+            const voiceSelect = document.getElementById('voice-select');
+            if (voiceSelect.value) {
+                utterance.voice = voices[voiceSelect.value];
+            }
+
+            // Set the speech rate from the input
+            const rate = document.getElementById('rate-control').value;
+            utterance.rate = parseFloat(rate);
+
+            // Set English as the default language
+            utterance.lang = 'en-US';
+
+            // Event triggered when speech ends
+            utterance.onend = function () {
+                if (currentLoop < 1) {
+                    currentLoop++;
+                    window.speechSynthesis.speak(utterance); // Repeat speech if loop count is not complete
+                } else {
+                    currentLoop = 0; // Reset loop count after completion
+                }
+            };
+        }
+		// 假设其他变量如 currentLoop 和 utterance 已经在外部作用域定义
+
+function handleClick() {
+    const text = document.getElementById('example-en').textContent;
+
+    if (text) {
+        if ('speechSynthesis' in window) {
+            // Retrieve loop count from input
+            // loopCount = parseInt(document.getElementById('loop-control').value) - 1;
+            currentLoop = 0; // Reset current loop
+
+            // Create and speak the utterance
+            createUtterance(text);
+            window.speechSynthesis.speak(utterance);
+        } else {
+            alert("Sorry, your browser does not support the Web Speech API.");
+        }
+    } else {
+        alert("Please enter some text!");
+    }
+}
+
+document.getElementById('example-en').addEventListener('click', handleClick);
+    const books = {
+  "第一册": {
+    "pen": {
+      "translation": "钢笔",
+      "phonetic": "[pen]"
+    },
+    "ruler": {
+      "translation": "尺子",
+      "phonetic": "['ru:lə]"
+    },
+    "book": {
+      "translation": "书",
+      "phonetic": "[buk]"
+    },
+    "school": {
+      "translation": "学校",
+      "phonetic": "[sku:l]"
+    },
+    "nose": {
+      "translation": "鼻子",
+      "phonetic": "[nəuz]"
+    },
+    "ear": {
+      "translation": "耳朵",
+      "phonetic": "[iə]"
+    },
+    "leg": {
+      "translation": "腿",
+      "phonetic": "[leg]"
+    },
+    "red": {
+      "translation": "红色的",
+      "phonetic": "[red]"
+    },
+    "blue": {
+      "translation": "蓝色的",
+      "phonetic": "[blu:]"
+    },
+    "black": {
+      "translation": "黑色的",
+      "phonetic": "[blæk]"
+    },
+    "brown": {
+      "translation": "棕色的",
+      "phonetic": "[braun]"
+    },
+    "monkey": {
+      "translation": "猴子",
+      "phonetic": "['mʌŋki]"
+    },
+    "duck": {
+      "translation": "鸭子",
+      "phonetic": "[dʌk]"
+    },
+    "bear": {
+      "translation": "熊",
+      "phonetic": "[bεə]"
+    },
+    "squirrel": {
+      "translation": "松鼠",
+      "phonetic": "['skwə:rəl]"
+    },
+    "hot dog": {
+      "translation": "热狗",
+      "phonetic": ""
+    },
+    "French fries": {
+      "translation": "炸薯条",
+      "phonetic": ""
+    },
+    "milk": {
+      "translation": "牛奶",
+      "phonetic": "[milk]"
+    },
+    "coffee": {
+      "translation": "咖啡",
+      "phonetic": "['kəfi]"
+    },
+    "three": {
+      "translation": "三",
+      "phonetic": "[θri:]"
+    },
+    "six": {
+      "translation": "六",
+      "phonetic": "[siks]"
+    },
+    "nine": {
+      "translation": "九",
+      "phonetic": "[nain]"
+    },
+    "boat": {
+      "translation": "小船",
+      "phonetic": "[bəut]"
+    },
+    "balloon": {
+      "translation": "气球",
+      "phonetic": "[bə'lu:n]"
+    }
+  },
+  "第二册": {
+    "I am": {
+      "translation": "我是",
+      "phonetic": "[æm]"
+    },
+    "come in": {
+      "translation": "进来",
+      "phonetic": "[kʌm]"
+    },
+    "good": {
+      "translation": "好的",
+      "phonetic": "[gud]"
+    },
+    "from": {
+      "translation": "从",
+      "phonetic": "[frɔm]"
+    },
+    "pencil": {
+      "translation": "铅笔",
+      "phonetic": "['pensəl]"
+    },
+    "eraser": {
+      "translation": "橡皮",
+      "phonetic": "[i'reizə]"
+    },
+    "bag": {
+      "translation": "书包",
+      "phonetic": "[bæg]"
+    },
+    "head": {
+      "translation": "头",
+      "phonetic": "[hed]"
+    },
+    "mouth": {
+      "translation": "嘴",
+      "phonetic": "[mauθ]"
+    },
+    "arm": {
+      "translation": "胳膊",
+      "phonetic": "[ɑ:m]"
+    },
+    "foot": {
+      "translation": "脚",
+      "phonetic": "[fut]"
+    },
+    "yellow": {
+      "translation": "黄色的",
+      "phonetic": "['jeləu]"
+    },
+    "purple": {
+      "translation": "紫色的",
+      "phonetic": "['pə:pl]"
+    },
+    "orange": {
+      "translation": "橙色的",
+      "phonetic": "['ɔrindʒ]"
+    },
+    "cat": {
+      "translation": "猫",
+      "phonetic": "[kæt]"
+    },
+    "panda": {
+      "translation": "熊猫",
+      "phonetic": "['pændə]"
+    },
+    "pig": {
+      "translation": "猪",
+      "phonetic": "[pig]"
+    },
+    "elephant": {
+      "translation": "大象",
+      "phonetic": "['elifənt]"
+    },
+    "cake": {
+      "translation": "蛋糕",
+      "phonetic": "[keik]"
+    },
+    "hamburger": {
+      "translation": "汉堡包",
+      "phonetic": "['hæmbə:gə]"
+    },
+    "Coke": {
+      "translation": "可乐",
+      "phonetic": "[kəuk]"
+    },
+    "water": {
+      "translation": "水",
+      "phonetic": "['wɔ:tə]"
+    },
+    "one": {
+      "translation": "一",
+      "phonetic": "[wʌn]"
+    },
+    "four": {
+      "translation": "四",
+      "phonetic": "[fɔ:]"
+    },
+    "seven": {
+      "translation": "七",
+      "phonetic": "['sevən]"
+    },
+    "ten": {
+      "translation": "十",
+      "phonetic": "[ten]"
+    },
+    "ball": {
+      "translation": "球",
+      "phonetic": "[bɔ:l]"
+    },
+    "car": {
+      "translation": "小汽车",
+      "phonetic": "[kɑː]"
+    },
+    "you": {
+      "translation": "你",
+      "phonetic": "[ju:]"
+    },
+    "name": {
+      "translation": "名字",
+      "phonetic": "[neim]"
+    },
+    "good morning": {
+      "translation": "早上好",
+      "phonetic": ""
+    },
+    "from Beijing": {
+      "translation": "从北京来的",
+      "phonetic": ""
+    },
+    "pencil-case": {
+      "translation": "铅笔盒",
+      "phonetic": "['pensəlkeis]"
+    },
+    "crayon": {
+      "translation": "蜡笔",
+      "phonetic": "['kreiən]"
+    },
+    "sharpener": {
+      "translation": "卷笔刀",
+      "phonetic": "['ʃɑːpənə]"
+    },
+    "face": {
+      "translation": "脸",
+      "phonetic": "[feis]"
+    },
+    "eye": {
+      "translation": "眼睛",
+      "phonetic": "[ai]"
+    },
+    "finger": {
+      "translation": "手指",
+      "phonetic": "['fiŋgə]"
+    },
+    "body": {
+      "translation": "身体",
+      "phonetic": "['bɔdi]"
+    },
+    "green": {
+      "translation": "绿色的",
+      "phonetic": "[gri:n]"
+    },
+    "white": {
+      "translation": "白色的",
+      "phonetic": "[hwit]"
+    },
+    "pink": {
+      "translation": "粉色的",
+      "phonetic": "[piŋk]"
+    },
+    "dog": {
+      "translation": "狗",
+      "phonetic": "[dɔg]"
+    },
+    "rabbit": {
+      "translation": "兔子",
+      "phonetic": "['ræbit]"
+    },
+    "bird": {
+      "translation": "鸟",
+      "phonetic": "[bə:d]"
+    },
+    "mouse": {
+      "translation": "老鼠",
+      "phonetic": "[maus]"
+    },
+    "bread": {
+      "translation": "面包",
+      "phonetic": "[bred]"
+    },
+    "chicken": {
+      "translation": "鸡肉",
+      "phonetic": "['tʃikin]"
+    },
+    "juice": {
+      "translation": "果汁",
+      "phonetic": "[dʒuːs]"
+    },
+    "tea": {
+      "translation": "茶",
+      "phonetic": "[ti:]"
+    },
+    "two": {
+      "translation": "二",
+      "phonetic": "[tu:]"
+    },
+    "five": {
+      "translation": "五",
+      "phonetic": "[faiv]"
+    },
+    "eight": {
+      "translation": "八",
+      "phonetic": "[eit]"
+    },
+    "doll": {
+      "translation": "玩具娃娃",
+      "phonetic": "[dəl]"
+    },
+    "kite": {
+      "translation": "风筝",
+      "phonetic": "[kait]"
+    },
+    "plane": {
+      "translation": "飞机",
+      "phonetic": "[plein]"
+    },
+    "are": {
+      "translation": "(你)是",
+      "phonetic": "[ɑ:]"
+    },
+        "class": {
+      "translation": "班",
+      "phonetic": "[klɑːs]"
+    },
+    "new": {
+      "translation": "新的",
+      "phonetic": "[nju:]"
+    },
+    "we": {
+      "translation": "我们",
+      "phonetic": "[wi:]"
+    }
+  },
+  "第三册": {
+    "chair": {
+      "translation": "椅子",
+      "phonetic": "[tʃεə]"
+    },
+    "wall": {
+      "translation": "墙",
+      "phonetic": "[wɔ:l]"
+    },
+    "box": {
+      "translation": "盒子",
+      "phonetic": "[bɔks]"
+    },
+    "floor": {
+      "translation": "地板",
+      "phonetic": "[flɔ:]"
+    },
+    "at": {
+      "translation": "在",
+      "phonetic": "[æt]"
+    },
+    "zoo": {
+      "translation": "动物园",
+      "phonetic": "[zu:]"
+    },
+    "at the zoo": {
+      "translation": "在动物园里",
+      "phonetic": ""
+    },
+    "park": {
+      "translation": "公园",
+      "phonetic": "[pɑːk]"
+    },
+    "classroom": {
+      "translation": "教室",
+      "phonetic": "['klɑːsrum]"
+    },
+    "factory": {
+      "translation": "工厂",
+      "phonetic": "['fæktəri]"
+    },
+    "square": {
+      "translation": "广场",
+      "phonetic": "[skweə]"
+    },
+    "capital": {
+      "translation": "首都",
+      "phonetic": "['kæpitəl]"
+    },
+    "China": {
+      "translation": "中国",
+      "phonetic": "['tʃainə]"
+    },
+    "the capital of China": {
+      "translation": "中国的首都",
+      "phonetic": ""
+    },
+    "love": {
+      "translation": "爱",
+      "phonetic": "[lʌv]"
+    },
+    "motherland": {
+      "translation": "祖国",
+      "phonetic": "['mʌðəlænd]"
+    },
+    "has": {
+      "translation": "有",
+      "phonetic": "[hæz]"
+    },
+    "star": {
+      "translation": "星",
+      "phonetic": "[stɑː]"
+    },
+    "our": {
+      "translation": "我们的",
+      "phonetic": "['auə]"
+    },
+    "national": {
+      "translation": "国家的",
+      "phonetic": "['næʃənəl]"
+    },
+    "cap": {
+      "translation": "帽子",
+      "phonetic": "[kæp]"
+    },
+    "national flag": {
+      "translation": "国旗",
+      "phonetic": "[flæg]"
+    },
+    "coat": {
+      "translation": "上衣",
+      "phonetic": "[kəut]"
+    },
+    "have": {
+      "translation": "有",
+      "phonetic": "[hæv]"
+    },
+    "long": {
+      "translation": "长的",
+      "phonetic": "[lɔ:ŋ]"
+    },
+    "short": {
+      "translation": "短的, 矮的",
+      "phonetic": "[ʃɔ:t]"
+    },
+    "big": {
+      "translation": "大的",
+      "phonetic": "[big]"
+    },
+    "small": {
+      "translation": "小的",
+      "phonetic": "[smɔ:l]"
+    },
+    "or": {
+      "translation": "或, 还是",
+      "phonetic": "[ɔ:]"
+    },
+    "guess": {
+      "translation": "猜",
+      "phonetic": "[ges]"
+    },
+    "hey": {
+      "translation": "嗨",
+      "phonetic": "[hei]"
+    },
+    "tall": {
+      "translation": "高的",
+      "phonetic": "[tɔ:l]"
+    },
+    "old": {
+      "translation": "年老的",
+      "phonetic": "[əuld]"
+    },
+    "young": {
+      "translation": "年轻的",
+      "phonetic": "[jʌŋ]"
+    },
+    "Chinese": {
+      "translation": "中国的; 汉语; 中国人",
+      "phonetic": "['tʃai'ni:z]"
+    },
+    "English": {
+      "translation": "英国的; 英语; 英国人",
+      "phonetic": "['iŋgliʃ]"
+    },
+    "over": {
+      "translation": "越(过)",
+      "phonetic": "['əuvə]"
+    },
+    "there": {
+      "translation": "那儿",
+      "phonetic": "[ðεə]"
+    },
+    "over there": {
+      "translation": "在那边",
+      "phonetic": ""
+    },
+    "American": {
+      "translation": "美国的, 美国人",
+      "phonetic": "[ə'merikən]"
+    },
+    "other": {
+      "translation": "另外的",
+      "phonetic": "['ʌðə]"
+    },
+    "an": {
+      "translation": "一(个)",
+      "phonetic": "[æn]"
+    },
+    "apple": {
+      "translation": "苹果",
+      "phonetic": "['æpl]"
+    },
+    "orange": {
+      "translation": "桔子",
+      "phonetic": "['ɔrindʒ]"
+    },
+    "hand": {
+      "translation": "手",
+      "phonetic": "[hænd]"
+    },
+    "egg": {
+      "translation": "蛋",
+      "phonetic": "[eg]"
+    },
+    "umbrella": {
+      "translation": "伞",
+      "phonetic": "[ʌm'brelə]"
+    },
+    "school is over": {
+      "translation": "放学了",
+      "phonetic": ""
+    },
+    "home": {
+      "translation": "家",
+      "phonetic": "[həum]"
+    },
+    "go home": {
+      "translation": "回家",
+      "phonetic": ""
+    },
+    "rain": {
+      "translation": "雨; 下雨",
+      "phonetic": "[rein]"
+    },
+    "it's raining": {
+      "translation": "正在下雨",
+      "phonetic": ""
+    },
+    "can't": {
+      "translation": "不能",
+      "phonetic": ""
+    },
+    "now": {
+      "translation": "现在",
+      "phonetic": "[nau]"
+    },
+    "much": {
+      "translation": "许多",
+      "phonetic": "[mʌtʃ]"
+    },
+    "how much": {
+      "translation": "多少",
+      "phonetic": ""
+    },
+    "eleven": {
+      "translation": "十一",
+      "phonetic": "[i'levən]"
+    },
+    "twelve": {
+      "translation": "十二",
+      "phonetic": "[twelv]"
+    },
+    "minus": {
+      "translation": "减",
+      "phonetic": "['mainəs]"
+    },
+    "here": {
+      "translation": "这儿",
+      "phonetic": "[hiə]"
+    },
+    "here you are": {
+      "translation": "给你",
+      "phonetic": ""
+    },
+    "money": {
+      "translation": "钱",
+      "phonetic": "['mʌni]"
+    },
+    "they": {
+      "translation": "他(她, 它)们",
+      "phonetic": ""
+    },
+    "twenty": {
+      "translation": "二十",
+      "phonetic": "['twenti]"
+    },
+    "these": {
+      "translation": "这些",
+      "phonetic": "[ð:z]"
+    },
+    "those": {
+      "translation": "那些",
+      "phonetic": "[ðouz]"
+    },
+    "door": {
+      "translation": "门",
+      "phonetic": "[dɔ:]"
+    },
+    "window": {
+      "translation": "窗",
+      "phonetic": "['windəu]"
+    },
+    "picture": {
+      "translation": "图画",
+      "phonetic": "['piktʃə]"
+    },
+    "talk": {
+      "translation": "说话, 谈论",
+      "phonetic": "[tɔ:k]"
+    },
+    "about": {
+      "translation": "关于",
+      "phonetic": "[ə'baut]"
+    },
+    "flower": {
+      "translation": "花",
+      "phonetic": "['flauə]"
+    },
+    "some": {
+      "translation": "一些",
+      "phonetic": "[sʌm]"
+    },
+    "boat": {
+      "translation": "船",
+      "phonetic": "[bəut]"
+    },
+    "lake": {
+      "translation": "湖",
+      "phonetic": "[leik]"
+    },
+    "skirt": {
+      "translation": "裙子",
+      "phonetic": "[skə:t]"
+    },
+    "clean": {
+      "translation": "清洁的",
+      "phonetic": "[kli:n]"
+    },
+        "shirt": {
+      "translation": "(男式)衬衫",
+      "phonetic": "[ʃə:t]"
+    },
+    "dirty": {
+      "translation": "脏的",
+      "phonetic": "['də:ti]"
+    },
+    "cup": {
+      "translation": "杯子",
+      "phonetic": "[kʌp]"
+    },
+    "glass": {
+      "translation": "玻璃杯",
+      "phonetic": "[glɑːs]"
+    },
+    "picture-book": {
+      "translation": "图画书",
+      "phonetic": ""
+    },
+    "have a look": {
+      "translation": "看一看",
+      "phonetic": ""
+    },
+    "sure": {
+      "translation": "当然, 一定",
+      "phonetic": "[ʃuə]"
+    },
+    "and": {
+      "translation": "和",
+      "phonetic": "[ænd]"
+    },
+    "grade": {
+      "translation": "年级",
+      "phonetic": "[greid]"
+    },
+    "maths": {
+      "translation": "数学",
+      "phonetic": "[mæθs]"
+    },
+    "your": {
+      "translation": "你们的",
+      "phonetic": "[jɔ:]"
+    },
+    "their": {
+      "translation": "他(她, 它)们的",
+      "phonetic": "[ðεə]"
+    },
+    "pioneer": {
+      "translation": "先锋",
+      "phonetic": "['paiə'niə]"
+    },
+    "young pioneer": {
+      "translation": "少年先锋队员",
+      "phonetic": ""
+    },
+    "scarf": {
+      "translation": "领巾",
+      "phonetic": "[skɑːf]"
+    },
+    "red scarf": {
+      "translation": "红领巾",
+      "phonetic": ""
+    },
+    "both": {
+      "translation": "两",
+      "phonetic": "[bəuθ]"
+    },
+    "all": {
+      "translation": "全部, 都",
+      "phonetic": "[ɔ:l]"
+    },
+    "peasant": {
+      "translation": "农民",
+      "phonetic": "['pezənt]"
+    },
+    "soldier": {
+      "translation": "士兵",
+      "phonetic": "['səuldʒə]"
+    },
+    "doctor": {
+      "translation": "医生",
+      "phonetic": "['dəktə]"
+    },
+    "class is over": {
+      "translation": "下课了",
+      "phonetic": ""
+    },
+    "play": {
+      "translation": "玩",
+      "phonetic": "[plei]"
+    },
+    "there are": {
+      "translation": "有",
+      "phonetic": ""
+    },
+    "do": {
+      "translation": "做",
+      "phonetic": "[du:]"
+    },
+    "what are they doing": {
+      "translation": "她们在做什么",
+      "phonetic": ""
+    },
+    "pingpong": {
+      "translation": "乒乓",
+      "phonetic": ""
+    },
+    "right": {
+      "translation": "对的",
+      "phonetic": "[rait]"
+    },
+    "join": {
+      "translation": "参加",
+      "phonetic": "['dʒɔin]"
+    },
+    "them": {
+      "translation": "他(她, 它)们(宾格)",
+      "phonetic": "[ðem]"
+    }
+  },
+  "第四册": {
+    "paper": {
+      "translation": "纸",
+      "phonetic": "['peipə]"
+    },
+    "piece": {
+      "translation": "片",
+      "phonetic": "[pi:s]"
+    },
+    "a piece of": {
+      "translation": "一片, 一张",
+      "phonetic": ""
+    },
+    "ink": {
+      "translation": "墨水",
+      "phonetic": "[iŋk]"
+    },
+    "bottle": {
+      "translation": "瓶",
+      "phonetic": "['bətl]"
+    },
+    "a bottle of": {
+      "translation": "一瓶",
+      "phonetic": ""
+    },
+    "water": {
+      "translation": "水",
+      "phonetic": "['wɔ:tə]"
+    },
+    "bread": {
+      "translation": "面包",
+      "phonetic": "[bred]"
+    },
+    "give": {
+      "translation": "给",
+      "phonetic": "[giv]"
+    },
+    "me": {
+      "translation": "我(宾格)",
+      "phonetic": "[mi:]"
+    },
+    "please": {
+      "translation": "请",
+      "phonetic": "[pli:z]"
+    },
+    "thank": {
+      "translation": "谢谢",
+      "phonetic": "[θæŋk]"
+    },
+    "want": {
+      "translation": "要",
+      "phonetic": "[wɔ:nt]"
+    },
+    "write": {
+      "translation": "写",
+      "phonetic": "[rait]"
+    },
+    "letter": {
+      "translation": "信",
+      "phonetic": "['letə]"
+    },
+    "any": {
+      "translation": "任何",
+      "phonetic": "['eni]"
+    },
+    "have you any paper": {
+      "translation": "你有纸吗",
+      "phonetic": ""
+    },
+    "thanks": {
+      "translation": "谢谢",
+      "phonetic": ""
+    },
+    "go": {
+      "translation": "去",
+      "phonetic": "[gəu]"
+    },
+    "go to the door": {
+      "translation": "到门那儿去",
+      "phonetic": ""
+    },
+    "open": {
+      "translation": "开",
+      "phonetic": "['əupən]"
+    },
+    "close": {
+      "translation": "关",
+      "phonetic": "[kləuz]"
+    },
+    "blackboard": {
+      "translation": "黑板",
+      "phonetic": "['blækbɔ:d]"
+    },
+    "clean": {
+      "translation": "把…弄干净",
+      "phonetic": "[kli:n]"
+    },
+    "football": {
+      "translation": "足球",
+      "phonetic": "['fut,bɔ:l]"
+    },
+    "match": {
+      "translation": "比赛",
+      "phonetic": "[mætʃ]"
+    },
+    "this afternoon": {
+      "translation": "今天下午",
+      "phonetic": "[,ɑ:ftə:'nu:n]"
+    },
+    "between": {
+      "translation": "在(两者)之间",
+      "phonetic": "[bi'twi:n]"
+    },
+    "time": {
+      "translation": "时候",
+      "phonetic": "[taim]"
+    },
+    "what time": {
+      "translation": "什么时候",
+      "phonetic": ""
+    },
+    "at three": {
+      "translation": "在三时",
+      "phonetic": ""
+    },
+    "but": {
+      "translation": "但是",
+      "phonetic": "[bʌt]"
+    },
+    "jacket": {
+      "translation": "外衣, 夹克",
+      "phonetic": "['dʒækit]"
+    },
+    "basketball": {
+      "translation": "篮球",
+      "phonetic": "['bɑːskitbɔ:l]"
+    },
+    "TV": {
+      "translation": "电视",
+      "phonetic": ""
+    },
+    "radio": {
+      "translation": "收音机",
+      "phonetic": "['reidiəu]"
+    },
+    "bat": {
+      "translation": "球拍",
+      "phonetic": "[bæt]"
+    },
+    "maybe": {
+      "translation": "也许, 可能",
+      "phonetic": "['meibi]"
+    },
+    "of course": {
+      "translation": "当然",
+      "phonetic": "[kɔ:s]"
+    },
+    "some": {
+      "translation": "一些",
+      "phonetic": "[sʌm]"
+    },
+    "knife": {
+      "translation": "小刀",
+      "phonetic": "[naif]"
+    },
+    "sorry": {
+      "translation": "对不起, 抱歉",
+      "phonetic": ""
+    },
+    "for": {
+      "translation": "为",
+      "phonetic": "[fɔ:]"
+    },
+    "can": {
+      "translation": "能够",
+      "phonetic": "[kæn]"
+    },
+    "make": {
+      "translation": "做, 制作",
+      "phonetic": "[meik]"
+    },
+    "right now": {
+      "translation": "立刻",
+      "phonetic": ""
+    },
+    "there is": {
+      "translation": "有, 存在",
+      "phonetic": ""
+    },
+    "picture": {
+      "translation": "图画",
+      "phonetic": "['piktʃə]"
+    },
+    "near": {
+      "translation": "靠近",
+      "phonetic": "[niə]"
+    },
+    "playground": {
+      "translation": "操场",
+      "phonetic": "['pleigraund]"
+    },
+    "model": {
+      "translation": "模型",
+      "phonetic": "['mɔdəl]"
+    },
+    "model plane": {
+      "translation": "模型飞机",
+      "phonetic": ""
+    },
+    "model ship": {
+      "translation": "模型轮船",
+      "phonetic": ""
+    },
+    "sky": {
+      "translation": "天空",
+      "phonetic": "[skai]"
+    },
+    "lake": {
+      "translation": "湖",
+      "phonetic": "[leik]"
+    },
+    "bright": {
+      "translation": "明亮的",
+      "phonetic": "[brait]"
+    },
+    "above": {
+      "translation": "在…上方",
+      "phonetic": "[ə'bʌv]"
+    },
+    "slogan": {
+      "translation": "标语, 口号",
+      "phonetic": "['sləugən]"
+    },
+    "world": {
+      "translation": "世界",
+      "phonetic": "[wə:ld]"
+    },
+    "many": {
+      "translation": "许多",
+      "phonetic": "['meni]"
+    },
+    "lesson": {
+      "translation": "功课",
+      "phonetic": "['lesən]"
+    },
+    "have lessons": {
+      "translation": "上课",
+      "phonetic": ""
+    },
+    "like": {
+      "translation": "喜欢",
+      "phonetic": "[laik]"
+    },
+    "table": {
+      "translation": "桌子",
+      "phonetic": "['teibl]"
+    },
+    "let": {
+      "translation": "让",
+      "phonetic": "[let]"
+    },
+    "us": {
+      "translation": "我们(宾格)",
+      "phonetic": "[ʌs]"
+    },
+    "have a look": {
+      "translation": "看一看",
+      "phonetic": ""
+    },
+    "toy": {
+      "translation": "玩具",
+      "phonetic": "[tɔi]"
+    },
+    "fly": {
+      "translation": "飞",
+      "phonetic": "[flai]"
+    },
+    "house": {
+      "translation": "房子",
+      "phonetic": "[haus]"
+    },
+    "tree": {
+      "translation": "树",
+      "phonetic": "[tri:]"
+    },
+    "river": {
+      "translation": "河流",
+      "phonetic": "['rivə]"
+    },
+    "dog": {
+      "translation": "狗",
+      "phonetic": "[dɔg]"
+    },
+    "front": {
+      "translation": "前面, 前部",
+      "phonetic": "[frʌnt]"
+    },
+    "in front of": {
+      "translation": "在…前面",
+      "phonetic": ""
+    },
+    "cat": {
+      "translation": "猫",
+      "phonetic": "[kæt]"
+    },
+    "then": {
+      "translation": "那么, 然后",
+      "phonetic": "[ðen]"
+    },
+    "cow": {
+      "translation": "母牛",
+      "phonetic": "[kau]"
+    },
+    "behind": {
+      "translation": "在..后面",
+      "phonetic": "[bi'haind]"
+    },
+    "goose": {
+      "translation": "鹅",
+      "phonetic": "[gu:s]"
+    },
+    "geese": {
+      "translation": "鹅(复数)",
+      "phonetic": "[gi:s]"
+    },
+    "moon": {
+      "translation": "月亮",
+      "phonetic": "[mu:n]"
+    },
+    "air": {
+      "translation": "空气",
+      "phonetic": "[εə]"
+    },
+    "mountain": {
+      "translation": "山",
+      "phonetic": "['mauntin]"
+    },
+    "think": {
+      "translation": "想, 认为",
+      "phonetic": "[θiŋk]"
+    },
+    "so": {
+      "translation": "这样, 这么, 所以",
+      "phonetic": "['səu]"
+    },
+    "animal": {
+      "translation": "动物",
+      "phonetic": "['æniməl]"
+    },
+    "life": {
+      "translation": "生命, 生活",
+      "phonetic": "[laif]"
+    },
+    "which": {
+      "translation": "哪一个",
+      "phonetic": "[hwitʃ]"
+    },
+    "nineteen": {
+      "translation": "十九",
+      "phonetic": "[,nain'ti:n]"
+    },
+    "twenty": {
+      "translation": "二十",
+      "phonetic": "['twenti]"
+    },
+    "thirty": {
+      "translation": "三十",
+      "phonetic": "['θə:ti]"
+    },
+    "twenty-one": {
+      "translation": "二十一",
+      "phonetic": "['twenti'wʌn]"
+    },
+    "thirty-three": {
+      "translation": "三十三",
+      "phonetic": "['θə:ti'θri:]"
+    },
+    "miss": {
+      "translation": "女士, 小姐",
+      "phonetic": "[mis]"
+    },
+    "people": {
+      "translation": "人, 人民",
+      "phonetic": "['pi:pl]"
+    },
+    "family": {
+      "translation": "家, 家庭",
+      "phonetic": "['fæmili]"
+    },
+    "day": {
+      "translation": "白天",
+      "phonetic": "[dei]"
+    },
+    "week": {
+      "translation": "周, 星期",
+      "phonetic": "[wi:k]"
+    },
+    "today": {
+      "translation": "今天",
+      "phonetic": "[tə'dei]"
+    },
+    "baby": {
+      "translation": "婴儿, 幼畜",
+      "phonetic": "['beibi]"
+    },
+    "see": {
+      "translation": "看见",
+      "phonetic": "[si:]"
+    },
+    "zebra": {
+      "translation": "斑马",
+      "phonetic": "['zi:brə]"
+    },
+    "monkey": {
+      "translation": "猴子",
+      "phonetic": "['mʌŋki]"
+    },
+    "run": {
+      "translation": "跑",
+      "phonetic": "[rʌn]"
+    },
+    "jump": {
+      "translation": "跳",
+      "phonetic": "[dʒʌmp]"
+    },
+    "all the time": {
+      "translation": "一直",
+      "phonetic": ""
+    },
+    "count": {
+      "translation": "数",
+      "phonetic": "[kaunt]"
+    },
+    "lion": {
+      "translation": "狮子",
+      "phonetic": "['laiən]"
+    },
+    "tiger": {
+      "translation": "老虎",
+      "phonetic": "['taigə]"
+    },
+    "sit": {
+      "translation": "坐",
+      "phonetic": "[sit]"
+    },
+    "exercise": {
+      "translation": "练习",
+      "phonetic": "['eksəsaiz]"
+    },
+    "exercise-book": {
+      "translation": "练习本",
+      "phonetic": ""
+    },
+    "out": {
+      "translation": "出, 在外",
+      "phonetic": "[aut]"
+    },
+    "out of": {
+      "translation": "向(在)…外面",
+      "phonetic": ""
+    },
+    "listen": {
+      "translation": "听",
+      "phonetic": "['lisən]"
+    },
+    "read": {
+      "translation": "读",
+      "phonetic": "[ri:d]"
+    },
+    "after": {
+      "translation": "在…后面",
+      "phonetic": "['ɑ:ftə]"
+    },
+    "stop": {
+      "translation": "停止",
+      "phonetic": "[stɔp]"
+    },
+    "wait": {
+      "translation": "等待",
+      "phonetic": "[weit]"
+    },
+    "evening": {
+      "translation": "傍晚, 晚上",
+      "phonetic": "['i:vniŋ]"
+    },
+    "cinema": {
+      "translation": "电影院",
+      "phonetic": "['sinəmə]"
+    },
+    "crossing": {
+      "translation": "十字路口",
+      "phonetic": "['krɔ:siŋ]"
+    },
+    "light": {
+      "translation": "灯, 光",
+      "phonetic": "['lait]"
+    },
+    "must": {
+      "translation": "必须, 应该",
+      "phonetic": "[mʌst]"
+    },
+    "yet": {
+      "translation": "还(没有)…还(不)…",
+      "phonetic": "[jet]"
+    },
+    "o'clock": {
+      "translation": "点钟",
+      "phonetic": "[ə'klɔk]"
+    },
+    "morning": {
+      "translation": "早晨, 上午",
+      "phonetic": "['mɔ:niŋ]"
+    },
+    "get": {
+      "translation": "得到",
+      "phonetic": "[get]"
+    },
+        "up": {
+      "translation": "向上",
+      "phonetic": "[ʌp]"
+    },
+    "get up": {
+      "translation": "起床",
+      "phonetic": ""
+    },
+    "half": {
+      "translation": "半",
+      "phonetic": "[hɑːf, hæf]"
+    },
+    "past": {
+      "translation": "过",
+      "phonetic": "[pɑːst, pæst]"
+    },
+    "morning exercises": {
+      "translation": "早操",
+      "phonetic": ""
+    },
+    "breakfast": {
+      "translation": "早餐",
+      "phonetic": "['brekfəst]"
+    },
+    "eye-exercises": {
+      "translation": "眼保操",
+      "phonetic": ""
+    },
+    "have a lesson": {
+      "translation": "上课",
+      "phonetic": ""
+    },
+    "draw": {
+      "translation": "画",
+      "phonetic": "[drɔ:]"
+    },
+    "clock": {
+      "translation": "钟",
+      "phonetic": "[klək]"
+    },
+    "tell": {
+      "translation": "告诉",
+      "phonetic": "[tel]"
+    },
+    "her": {
+      "translation": "她(宾格)",
+      "phonetic": "[hə:]"
+    },
+    "stand": {
+      "translation": "站, 站立",
+      "phonetic": "[stænd]"
+    },
+    "ask": {
+      "translation": "问, 提问",
+      "phonetic": "[ɑ:sk]"
+    },
+    "question": {
+      "translation": "问题",
+      "phonetic": "['kwestʃən]"
+    },
+    "other": {
+      "translation": "别的",
+      "phonetic": "['ʌðə]"
+    },
+    "answer": {
+      "translation": "回答",
+      "phonetic": "['ɑ:nsə]"
+    },
+    "talk in English": {
+      "translation": "用英语交谈",
+      "phonetic": ""
+    },
+    "help": {
+      "translation": "帮助",
+      "phonetic": "[help]"
+    },
+    "quarter": {
+      "translation": "四分之一; 一刻",
+      "phonetic": "['kwɔ:tə]"
+    },
+    "game": {
+      "translation": "游戏",
+      "phonetic": "[geim]"
+    },
+    "study": {
+      "translation": "学习, 研究",
+      "phonetic": "['stʌdi]"
+    },
+    "supper": {
+      "translation": "晚饭",
+      "phonetic": "['sʌpə]"
+    },
+    "watch": {
+      "translation": "观看",
+      "phonetic": "[wɔ:tʃ]"
+    },
+    "homework": {
+      "translation": "家庭作业",
+      "phonetic": "['həumwə:k]"
+    },
+    "Mr.": {
+      "translation": "先生(mister的缩写)",
+      "phonetic": "['mistə]"
+    },
+    "son": {
+      "translation": "儿子",
+      "phonetic": "[sʌn]"
+    },
+    "daughter": {
+      "translation": "女儿",
+      "phonetic": "['dɔ:tə]"
+    },
+    "newspaper": {
+      "translation": "报纸",
+      "phonetic": "['nju:s,peipə]"
+    },
+    "by": {
+      "translation": "在…旁, 靠近",
+      "phonetic": ""
+    },
+    "story": {
+      "translation": "故事",
+      "phonetic": "['stɔ:ri]"
+    },
+    "story-book": {
+      "translation": "故事书",
+      "phonetic": ""
+    },
+    "with": {
+      "translation": "和…用…",
+      "phonetic": "[wið]"
+    },
+    "play with": {
+      "translation": "玩…",
+      "phonetic": ""
+    },
+    "sweep": {
+      "translation": "扫",
+      "phonetic": "[swi:p]"
+    },
+    "floor": {
+      "translation": "地板, 地面",
+      "phonetic": "[flɔ:]"
+    },
+    "mop": {
+      "translation": "擦, 抹, 拖",
+      "phonetic": "[mɔp]"
+    },
+    "ready": {
+      "translation": "准备好了",
+      "phonetic": "['redi]"
+    },
+    "still": {
+      "translation": "还, 仍旧",
+      "phonetic": "[stil]"
+    },
+    "lunch": {
+      "translation": "午餐",
+      "phonetic": "['lʌntʃ]"
+    },
+    "room": {
+      "translation": "房间",
+      "phonetic": "[ru:m]"
+    },
+    "look for": {
+      "translation": "寻找",
+      "phonetic": ""
+    },
+    "hurry": {
+      "translation": "匆忙, 赶紧",
+      "phonetic": "['hʌri]"
+    },
+    "hurry up": {
+      "translation": "快点",
+      "phonetic": ""
+    },
+    "fox": {
+      "translation": "狐狸",
+      "phonetic": "[fɔks]"
+    },
+    "news": {
+      "translation": "消息, 新闻",
+      "phonetic": "['nju:z]"
+    },
+    "down": {
+      "translation": "向下",
+      "phonetic": "[daun]"
+    },
+    "very": {
+      "translation": "很, 非常",
+      "phonetic": "['veri]"
+    },
+    "way": {
+      "translation": "路",
+      "phonetic": "[wei]"
+    },
+    "come this way": {
+      "translation": "往这边来",
+      "phonetic": ""
+    },
+    "well": {
+      "translation": "健康的",
+      "phonetic": "[wel]"
+    },
+    "away": {
+      "translation": "离",
+      "phonetic": "[ə'wei]"
+    },
+    "run away": {
+      "translation": "跑掉",
+      "phonetic": ""
+    },
+    "why": {
+      "translation": "(表吃惊, 满意等)哎呀! 为什么?",
+      "phonetic": "[hwai]"
+    }
+  },
+  "第五册": {
+    "board": {
+      "translation": "写字板",
+      "phonetic": "[bɔ:d]"
+    },
+    "computer": {
+      "translation": "计算机",
+      "phonetic": ""
+    },
+    "teacher's desk": {
+      "translation": "讲台",
+      "phonetic": ""
+    },
+    "fan": {
+      "translation": "扇子, 电扇",
+      "phonetic": "[fæn]"
+    },
+    "classmate": {
+      "translation": "同学",
+      "phonetic": "['klɑːsmeit]"
+    },
+    "good idea": {
+      "translation": "好主意",
+      "phonetic": "[ai'diə]"
+    },
+    "all right": {
+      "translation": "好吧, 好的",
+      "phonetic": ""
+    },
+    "seat": {
+      "translation": "座位",
+      "phonetic": "[si:t]"
+    },
+    "good job": {
+      "translation": "干的好",
+      "phonetic": "[dʒəb]"
+    },
+    "what": {
+      "translation": "什么",
+      "phonetic": "[hwət]"
+    },
+    "look at": {
+      "translation": "看……",
+      "phonetic": ""
+    },
+    "Chinese book": {
+      "translation": "语文书",
+      "phonetic": ""
+    },
+    "English book": {
+      "translation": "英语书",
+      "phonetic": ""
+    },
+    "notebook": {
+      "translation": "笔记本",
+      "phonetic": "['nəutbuk]"
+    },
+    "too many": {
+      "translation": "太多了",
+      "phonetic": ""
+    },
+    "fat": {
+      "translation": "胖的",
+      "phonetic": "[fæt]"
+    },
+    "heavy": {
+      "translation": "重的; 沉重的",
+      "phonetic": "['hevi]"
+    },
+    "may": {
+      "translation": "可以",
+      "phonetic": "[mei]"
+    },
+    "long hair": {
+      "translation": "长头发",
+      "phonetic": "[hεə]"
+    },
+    "short hair": {
+      "translation": "短头发",
+      "phonetic": ""
+    },
+    "thin": {
+      "translation": "瘦的",
+      "phonetic": "[θin]"
+    },
+    "strong": {
+      "translation": "健壮的",
+      "phonetic": "[strəŋ]"
+    },
+    "quiet": {
+      "translation": "安静的",
+      "phonetic": "['kwaiət]"
+    },
+    "his": {
+      "translation": "他的",
+      "phonetic": "[hiz]"
+    },
+    "photo": {
+      "translation": "照片",
+      "phonetic": "['fəutəu]"
+    },
+        "teacher": {
+      "translation": "教师",
+      "phonetic": "['ti:tʃə]"
+    },
+    "student": {
+      "translation": "学生",
+      "phonetic": "['stju:dənt]"
+    },
+    "music": {
+      "translation": "音乐",
+      "phonetic": "['mju:zik]"
+    },
+    "science": {
+      "translation": "科学",
+      "phonetic": "['saiəns]"
+    },
+    "sports": {
+      "translation": "体育运动",
+      "phonetic": "[spɔ:ts]"
+    },
+    "computer game": {
+      "translation": "电脑游戏",
+      "phonetic": ""
+    },
+    "painting": {
+      "translation": "绘画",
+      "phonetic": "['peintiŋ]"
+    },
+    "boy": {
+      "translation": "男孩",
+      "phonetic": "[bɔi]"
+    },
+    "girl": {
+      "translation": "女孩",
+      "phonetic": "[gə:l]"
+    },
+    "bathroom": {
+      "translation": "卫生间",
+      "phonetic": "['bɑːθrum]"
+    },
+    "bedroom": {
+      "translation": "卧室",
+      "phonetic": "['bedrum]"
+    },
+    "kitchen": {
+      "translation": "厨房",
+      "phonetic": "['kitʃin]"
+    },
+    "fridge": {
+      "translation": "冰箱",
+      "phonetic": "[fridʒ]"
+    },
+    "key": {
+      "translation": "钥匙",
+      "phonetic": "[ki:]"
+    },
+    "desk": {
+      "translation": "课桌; 书桌",
+      "phonetic": "[desk]"
+    },
+    "rice": {
+      "translation": "米饭",
+      "phonetic": "[rais]"
+    },
+    "noodle(s)": {
+      "translation": "面条",
+      "phonetic": "['nu:dl]"
+    },
+    "beef": {
+      "translation": "牛肉",
+      "phonetic": "[bi:f]"
+    },
+    "vegetable": {
+      "translation": "蔬菜",
+      "phonetic": "['vedʒitəbl]"
+    },
+    "soup": {
+      "translation": "汤",
+      "phonetic": "[su:p]"
+    },
+    "hungry": {
+      "translation": "饥饿的",
+      "phonetic": "['hʌŋgri]"
+    },
+    "chopsticks": {
+      "translation": "筷子 (复数)",
+      "phonetic": "['tʃɔpstiks]"
+    },
+    "spoon": {
+      "translation": "勺子",
+      "phonetic": "[spu:n]"
+    },
+    "plate": {
+      "translation": "盘子",
+      "phonetic": "[pleit]"
+    },
+    "fork": {
+      "translation": "叉子",
+      "phonetic": "[fɔ:k]"
+    },
+    "pass": {
+      "translation": "传递",
+      "phonetic": "[pɑːs]"
+    },
+    "try": {
+      "translation": "试一下",
+      "phonetic": "[trai]"
+    },
+    "help yourself": {
+      "translation": "随便吃",
+      "phonetic": ""
+    },
+    "show": {
+      "translation": "展示",
+      "phonetic": "[ʃəu]"
+    },
+    "food": {
+      "translation": "食物",
+      "phonetic": "[fu:d]"
+    },
+    "parents": {
+      "translation": "父母",
+      "phonetic": "['peərənts]"
+    },
+    "uncle": {
+      "translation": "叔叔; 舅舅",
+      "phonetic": "['ʌŋkl]"
+    },
+    "aunt": {
+      "translation": "姑姑; 婶; 姨",
+      "phonetic": "[ɑ:nt]"
+    },
+    "member": {
+      "translation": "成员",
+      "phonetic": "['membə]"
+    },
+    "only": {
+      "translation": "只有; 仅仅",
+      "phonetic": "['əunli]"
+    },
+    "puppy": {
+      "translation": "小狗",
+      "phonetic": "['pʌpi]"
+    },
+    "sister": {
+      "translation": "姐妹",
+      "phonetic": "['sistə]"
+    },
+    "brother": {
+      "translation": "兄弟",
+      "phonetic": "['brʌðə]"
+    },
+    "father": {
+      "translation": "父亲; 爸爸",
+      "phonetic": "['fɑːðə]"
+    },
+    "driver": {
+      "translation": "司机",
+      "phonetic": "['draivə]"
+    },
+    "farmer": {
+      "translation": "农民",
+      "phonetic": "['fɑːmə]"
+    },
+    "nurse": {
+      "translation": "护士",
+      "phonetic": "[nə:s]"
+    },
+    "it": {
+      "translation": "它",
+      "phonetic": "[it]"
+    },
+    "class": {
+      "translation": "课程",
+      "phonetic": "[klɑːs]"
+    },
+    "dress": {
+      "translation": "连衣裙",
+      "phonetic": "[dres]"
+    },
+    "T-shirt": {
+      "translation": "T 恤衫",
+      "phonetic": ""
+    },
+    "no": {
+      "translation": "不; 不是",
+      "phonetic": "[nəu]"
+    },
+    "not": {
+      "translation": "不; 不是的",
+      "phonetic": "[nət]"
+    },
+    "warm": {
+      "translation": "暖和的",
+      "phonetic": "[wɔ:m]"
+    },
+    "cold": {
+      "translation": "寒冷的",
+      "phonetic": "[kəuld]"
+    },
+    "cool": {
+      "translation": "凉爽的",
+      "phonetic": "[ku:l]"
+    },
+    "today": {
+      "translation": "今天",
+      "phonetic": "[tə'dei]"
+    },
+    "jeans": {
+      "translation": "牛仔裤",
+      "phonetic": "[dʒi:nz]"
+    },
+    "pants": {
+      "translation": "长裤",
+      "phonetic": "[pænts]"
+    },
+    "socks": {
+      "translation": "袜子",
+      "phonetic": "[sɔks]"
+    },
+    "shoes": {
+      "translation": "鞋子",
+      "phonetic": "[ʃu:s]"
+    },
+    "snowy": {
+      "translation": "下雪的",
+      "phonetic": "['snəui]"
+    },
+    "sunny": {
+      "translation": "晴朗的",
+      "phonetic": "['sʌni]"
+    },
+    "banana": {
+      "translation": "香蕉",
+      "phonetic": "[bə'nɑːnə]"
+    },
+    "pear": {
+      "translation": "梨",
+      "phonetic": "[pεə]"
+    },
+    "watermelon": {
+      "translation": "西瓜",
+      "phonetic": "['wɔ:təmelən]"
+    },
+    "they": {
+      "translation": "她们",
+      "phonetic": "[ðei]"
+    },
+    "horse": {
+      "translation": "马",
+      "phonetic": "[hɔ:s]"
+    },
+    "Monday": {
+      "translation": "星期一",
+      "phonetic": "['mʌndi]"
+    },
+    "Tuesday": {
+      "translation": "星期二",
+      "phonetic": "['tju:zdi]"
+    },
+    "Wednesday": {
+      "translation": "星期三",
+      "phonetic": "['wenzdei]"
+    },
+    "Thursday": {
+      "translation": "星期四",
+      "phonetic": "['θə:zdi]"
+    },
+    "Friday": {
+      "translation": "星期五",
+      "phonetic": "['fraidi]"
+    },
+    "Saturday": {
+      "translation": "星期六",
+      "phonetic": "['sætədi]"
+    },
+    "Sunday": {
+      "translation": "星期天",
+      "phonetic": "['sʌndi]"
+    }
+  },
+ "第六册": {
+    "do morning exercises": {
+      "translation": "晨练",
+      "phonetic": "['mɔ:niŋ] ['eksəsaiz]"
+    },
+    "eat breakfast": {
+      "translation": "吃早饭",
+      "phonetic": "[i:t] ['brekfəst]"
+    },
+    "have English class": {
+      "translation": "上英语课",
+      "phonetic": "[hæv] ['iŋgliʃ] [klɑːs]"
+    },
+    "play sports": {
+      "translation": "进行体育运动",
+      "phonetic": "[plei] [spɔ:ts]"
+    },
+    "eat dinner": {
+      "translation": "吃晚饭",
+      "phonetic": "['dinə]"
+    },
+    "when": {
+      "translation": "什么时候",
+      "phonetic": "[(h)wen]"
+    },
+    "evening": {
+      "translation": "夜晚; 晚上",
+      "phonetic": "['i:vniŋ]"
+    },
+    "get up": {
+      "translation": "起床",
+      "phonetic": "[get] [ʌp]"
+    },
+    "usually": {
+      "translation": "通常; 一般",
+      "phonetic": "['ju:ʒʊəli]"
+    },
+    "noon": {
+      "translation": "中午",
+      "phonetic": "[nu:n]"
+    },
+    "climb mountains": {
+      "translation": "爬山",
+      "phonetic": "[klaim] ['mauntins]"
+    },
+    "go shopping": {
+      "translation": "购物; 买东西",
+      "phonetic": "[gəu] ['ʃɔpiŋ]"
+    },
+    "play the piano": {
+      "translation": "弹钢琴",
+      "phonetic": "[plei] [pi'ɑ:nəu]"
+    },
+    "visit grandparents": {
+      "translation": "看望祖父母",
+      "phonetic": "['vizit] ['græn,pεərənts]"
+    },
+    "go hiking": {
+      "translation": "去远足",
+      "phonetic": "['haikiŋ]"
+    },
+    "weekend": {
+      "translation": "周末",
+      "phonetic": "['wi:kend]"
+    },
+    "often": {
+      "translation": "经常",
+      "phonetic": "['ɔ:ftən]"
+    },
+    "sometimes": {
+      "translation": "有时候",
+      "phonetic": "['sʌmtaimz]"
+    },
+    "spring": {
+      "translation": "春天",
+      "phonetic": "[spriŋ]"
+    },
+    "summer": {
+      "translation": "夏天",
+      "phonetic": "['sʌmə]"
+    },
+    "fall": {
+      "translation": "秋天",
+      "phonetic": "[fɔ:l]"
+    },
+    "winter": {
+      "translation": "冬天",
+      "phonetic": "['wintə]"
+    },
+    "season": {
+      "translation": "季节",
+      "phonetic": "['si:zn]"
+    },
+    "which": {
+      "translation": "哪一个",
+      "phonetic": "[(h)witʃ]"
+    },
+    "best": {
+      "translation": "最; 极",
+      "phonetic": "[best]"
+    },
+    "swim": {
+      "translation": "游泳",
+      "phonetic": "[swim]"
+    },
+    "fly kites": {
+      "translation": "放风筝",
+      "phonetic": "[flai] [kait]"
+    },
+    "skate": {
+      "translation": "滑冰",
+      "phonetic": "[skeit]"
+    },
+    "make a snowman": {
+      "translation": "堆雪人",
+      "phonetic": "['snəʊmæn]"
+    },
+    "plant trees": {
+      "translation": "种树",
+      "phonetic": "[pla:nt] [tri:s]"
+    },
+    "because": {
+      "translation": "因为",
+      "phonetic": "[bi'kɔz]"
+    },
+    "sleep": {
+      "translation": "睡觉",
+      "phonetic": "[sli:p]"
+    },
+    "birthday": {
+      "translation": "生日",
+      "phonetic": "['bə:θdei]"
+    },
+    "date": {
+      "translation": "日期",
+      "phonetic": "[deit]"
+    },
+    "draw pictures": {
+      "translation": "画画",
+      "phonetic": "[drɔ:] ['piktʃəz]"
+    },
+    "cook dinner": {
+      "translation": "做饭",
+      "phonetic": "[kuk] ['dinə]"
+    },
+    "read a book": {
+      "translation": "看书",
+      "phonetic": "[rid]"
+    },
+    "answer the phone": {
+      "translation": "接电话",
+      "phonetic": "['ɑ:nsə] [fəun]"
+    },
+    "listen to music": {
+      "translation": "听音乐",
+      "phonetic": "['lisn] ['mju:zik]"
+    },
+    "clean the room": {
+      "translation": "打扫房间",
+      "phonetic": "[kli:n] [rum]"
+    },
+    "write a letter": {
+      "translation": "写信",
+      "phonetic": "[rait] ['letə]"
+    },
+    "write an e-mail": {
+      "translation": "写电子邮件",
+      "phonetic": ""
+    },
+    "grandpa": {
+      "translation": "爷爷; 外公",
+      "phonetic": "['grændpɑː]"
+    },
+    "study": {
+      "translation": "书房",
+      "phonetic": "['stʌdi]"
+    },
+    "kangaroo": {
+      "translation": "袋鼠",
+      "phonetic": "['kæŋgə'ru:]"
+    },
+    "sleep": {
+      "translation": "睡觉",
+      "phonetic": "[sli:p]"
+    },
+    "climb": {
+      "translation": "往上爬",
+      "phonetic": "[klaim]"
+    },
+    "fight": {
+      "translation": "打架",
+      "phonetic": "[fait]"
+    },
+    "swing": {
+      "translation": "荡; 荡秋千",
+      "phonetic": "[swiŋ]"
+    },
+    "drink water": {
+      "translation": "喝水",
+      "phonetic": "[drink] ['wɔ:tə]"
+    },
+    "take pictures": {
+      "translation": "照相",
+      "phonetic": "[teik] ['piktʃəz]"
+    },
+    "watch insects": {
+      "translation": "观察昆虫",
+      "phonetic": "[wɔtʃ] ['insekt]"
+    },
+    "pick up leaves": {
+      "translation": "采摘树叶",
+      "phonetic": "[pik] [ʌp] [li:vz]"
+    },
+    "do an experiment": {
+      "translation": "做实验",
+      "phonetic": "[du:] [æn] [iks'perimənt]"
+    },
+    "catch butterfly": {
+      "translation": "捉蝴蝶",
+      "phonetic": "[kætʃ] ['bʌtəflai]"
+    },
+    "honey": {
+      "translation": "蜂蜜",
+      "phonetic": "['hʌni]"
+    },
+    "count insects": {
+      "translation": "数昆虫",
+      "phonetic": "[kaʊnt] ['insekt]"
+    },
+    "collect leaves": {
+      "translation": "收集树叶",
+      "phonetic": "[kə'lekt]"
+    },
+    "write a report": {
+      "translation": "写报告",
+      "phonetic": "[rait] [ri'pɔ:t]"
+    },
+    "play chess": {
+      "translation": "下棋",
+      "phonetic": "[plei] [tʃes]"
+    },
+    "have a picnic": {
+      "translation": "举行野餐",
+      "phonetic": "['piknik]"
+    }
+  },
+  "第七册": {
+    "traffic": {
+      "translation": "交通",
+      "phonetic": "['træfik]"
+    },
+    "traffic light": {
+      "translation": "交通灯",
+      "phonetic": "[lait]"
+    },
+    "traffic rule": {
+      "translation": "交通规则",
+      "phonetic": "[ru:l]"
+    },
+    "stop": {
+      "translation": "停, 停车站",
+      "phonetic": "[stɔp]"
+    },
+    "wait": {
+      "translation": "等待",
+      "phonetic": "[weit]"
+    },
+    "get to": {
+      "translation": "到达",
+      "phonetic": "[get] [tu]"
+    },
+    "library": {
+      "translation": "图书馆",
+      "phonetic": "['laibrəri]"
+    },
+    "post office": {
+      "translation": "邮局",
+      "phonetic": "['pəust 'ɔfis]"
+    },
+    "hospital": {
+      "translation": "医院",
+      "phonetic": "['hɔspitl]"
+    },
+    "cinema": {
+      "translation": "电影院",
+      "phonetic": "['sinəmə]"
+    },
+    "bookstore": {
+      "translation": "书店",
+      "phonetic": "['bukstɔ:]"
+    },
+    "where": {
+      "translation": "在哪里, 到哪里",
+      "phonetic": "[(h)wεə]"
+    },
+    "please": {
+      "translation": "请",
+      "phonetic": "[pli:z]"
+    },
+    "next to": {
+      "translation": "与……相邻",
+      "phonetic": "[nekst]"
+    },
+    "turn": {
+      "translation": "转弯",
+      "phonetic": "[tə:n]"
+    },
+    "right": {
+      "translation": "右边",
+      "phonetic": "[rait]"
+    },
+    "left": {
+      "translation": "左边",
+      "phonetic": "[left]"
+    },
+    "straight": {
+      "translation": "成直线地",
+      "phonetic": "[streit]"
+    },
+    "then": {
+      "translation": "然后",
+      "phonetic": "[ðen]"
+    },
+    "next week": {
+      "translation": "下周",
+      "phonetic": "[wi:k]"
+    },
+    "this morning": {
+      "translation": "今天上午",
+      "phonetic": "['mɔ:niŋ]"
+    },
+    "this afternoon": {
+      "translation": "今天下午",
+      "phonetic": "['ɑ:ftə'nu:n]"
+    },
+    "this evening": {
+      "translation": "今天晚上",
+      "phonetic": "['i:vniŋ]"
+    },
+    "comic book": {
+      "translation": "漫画书",
+      "phonetic": "['kɔmik] [buk]"
+    },
+    "comic": {
+      "translation": "连环图画, 喜剧的",
+      "phonetic": "['kɔmik]"
+    },
+    "post card": {
+      "translation": "明信片",
+      "phonetic": "['pəust] [kɑ:d]"
+    },
+    "hobby": {
+      "translation": "爱好",
+      "phonetic": "['hɔbi]"
+    },
+    "ride a bike": {
+      "translation": "骑自行车",
+      "phonetic": "[raid] [ə] [baik]"
+    },
+    "dive": {
+      "translation": "跳水",
+      "phonetic": "[daiv]"
+    },
+    "play the violin": {
+      "translation": "拉小提琴",
+      "phonetic": "['pleiiŋ] [,vaiə'lin]"
+    },
+    "go": {
+      "translation": "去",
+      "phonetic": "[gəu]"
+    },
+    "make kites": {
+      "translation": "制作风筝",
+      "phonetic": "[meik] [kait]"
+    },
+    "live": {
+      "translation": "居住",
+      "phonetic": "[liv]"
+    },
+    "teach": {
+      "translation": "教",
+      "phonetic": "[ti:tʃ]"
+    },
+    "collect stamps": {
+      "translation": "集邮",
+      "phonetic": "[kə'lekt] [stæmps]"
+    },
+    "watch": {
+      "translation": "看",
+      "phonetic": "[wɔtʃ]"
+    },
+    "read": {
+      "translation": "读, 看",
+      "phonetic": "[ri:d]"
+    },
+    "doesn't": {
+      "translation": "不",
+      "phonetic": "[dʌznt]"
+    },
+    "singer": {
+      "translation": "歌唱家, 歌手",
+      "phonetic": "['siŋə]"
+    },
+    "writer": {
+      "translation": "作家",
+      "phonetic": "['raitə]"
+    },
+    "actor": {
+      "translation": "男演员",
+      "phonetic": "['æktə]"
+    },
+    "actress": {
+      "translation": "女演员",
+      "phonetic": "['æktris]"
+    },
+    "artist": {
+      "translation": "画家",
+      "phonetic": "['ɑ:tist]"
+    },
+    "TV reporter": {
+      "translation": "电视台记者",
+      "phonetic": "[ti:'vi:] [ri'pɔ:tə]"
+    },
+    "engineer": {
+      "translation": "工程师",
+      "phonetic": "[,endʒi'niə]"
+    },
+    "accountant": {
+      "translation": "会计",
+      "phonetic": "[ə'kauntənt]"
+    },
+    "policeman": {
+      "translation": "男警察",
+      "phonetic": "[pə'li:smən]"
+    },
+    "salesperson": {
+      "translation": "销售员",
+      "phonetic": "['seilz,pə:sən]"
+    },
+    "cleaner": {
+      "translation": "清洁工",
+      "phonetic": "['kli:nə]"
+    },
+    "cloud": {
+      "translation": "云",
+      "phonetic": "[klaud]"
+    },
+    "sun": {
+      "translation": "太阳",
+      "phonetic": "[sʌn]"
+    },
+    "stream": {
+      "translation": "河, 溪",
+      "phonetic": "[stri:m]"
+    },
+    "come from": {
+      "translation": "来自",
+      "phonetic": "[kʌm] [frɔm]"
+    },
+    "seed": {
+      "translation": "种子",
+      "phonetic": "[si:d]"
+    },
+    "soil": {
+      "translation": "土壤",
+      "phonetic": "[sɔil]"
+    },
+    "sprout": {
+      "translation": "苗, 芽",
+      "phonetic": "[spraut]"
+    },
+    "plant": {
+      "translation": "植物, 种植",
+      "phonetic": "[pla:nt]"
+    },
+    "should": {
+      "translation": "应该",
+      "phonetic": "[ʃud]"
+    },
+    "then": {
+      "translation": "然后",
+      "phonetic": "[ðen]"
+    }
+  },
+  "第八册": {
+    "tall": {
+      "translation": "高的",
+      "phonetic": "[tɔ:l]"
+    },
+    "taller": {
+      "translation": "更高的",
+      "phonetic": "[tɔ:lə]"
+    },
+    "short": {
+      "translation": "矮的, 短的",
+      "phonetic": "[ʃɔ:t]"
+    },
+    "shorter": {
+      "translation": "更矮的, 更短的",
+      "phonetic": "[ʃɔ:tə]"
+    },
+    "strong": {
+      "translation": "强壮的",
+      "phonetic": "[strɔŋ]"
+    },
+    "stronger": {
+      "translation": "更强壮的",
+      "phonetic": "[strɔŋə]"
+    },
+    "old": {
+      "translation": "老的",
+      "phonetic": "[əuld]"
+    },
+    "older": {
+      "translation": "更老的",
+      "phonetic": "[əuldə]"
+    },
+    "young": {
+      "translation": "年轻的",
+      "phonetic": "[jʌŋ]"
+    },
+    "younger": {
+      "translation": "更年轻的",
+      "phonetic": "[jʌŋə]"
+    },
+    "big": {
+      "translation": "大的",
+      "phonetic": "[big]"
+    },
+    "bigger": {
+      "translation": "更大的",
+      "phonetic": "[bigə]"
+    },
+    "heavy": {
+      "translation": "重的",
+      "phonetic": "['hevi]"
+    },
+    "heavier": {
+      "translation": "更重的",
+      "phonetic": "['heviə]"
+    },
+    "long": {
+      "translation": "长的",
+      "phonetic": "[lɔŋ]"
+    },
+    "longer": {
+      "translation": "更长的",
+      "phonetic": "[lɔŋə]"
+    },
+    "thin": {
+      "translation": "瘦的",
+      "phonetic": "[θin]"
+    },
+    "thinner": {
+      "translation": "更瘦的",
+      "phonetic": "[θinə]"
+    },
+    "small": {
+      "translation": "小的",
+      "phonetic": "[smɔ:l]"
+    },
+    "smaller": {
+      "translation": "更小的",
+      "phonetic": "[smɔ:lə]"
+    },
+    "have a fever": {
+      "translation": "发烧",
+      "phonetic": "[hæv] [ə] ['fi:və]"
+    },
+    "have a sore throat": {
+      "translation": "喉咙疼",
+      "phonetic": "[hæv] [ə] ['sɔ:θrəut]"
+    },
+    "have a cold": {
+      "translation": "感冒",
+      "phonetic": "[hæv] [ə] [kəuld]"
+    },
+    "have a toothache": {
+      "translation": "牙疼",
+      "phonetic": "[hæv] [ə] ['tu:θeik]"
+    },
+    "have a headache": {
+      "translation": "头疼",
+      "phonetic": "[hæv] [ə] ['hedeik]"
+    },
+    "matter": {
+      "translation": "事情, 麻烦",
+      "phonetic": "['mætə]"
+    },
+    "sore": {
+      "translation": "疼的",
+      "phonetic": "[sɔ:]"
+    },
+    "hurt": {
+      "translation": "疼痛",
+      "phonetic": "[hə:t]"
+    },
+    "tired": {
+      "translation": "疲劳的, 累的",
+      "phonetic": "['taiəd]"
+    },
+    "excited": {
+      "translation": "兴奋的",
+      "phonetic": "[ik'saitid]"
+    },
+    "angry": {
+      "translation": "生气的",
+      "phonetic": "['æŋgri]"
+    },
+    "happy": {
+      "translation": "高兴的",
+      "phonetic": "['hæpi]"
+    },
+    "bored": {
+      "translation": "无聊的, 烦人的",
+      "phonetic": "['bɔ:d]"
+    },
+    "sad": {
+      "translation": "忧伤的, 悲伤的",
+      "phonetic": "[sæd]"
+    },
+    "watch": {
+      "translation": "看",
+      "phonetic": "[wɔtʃ]"
+    },
+    "clean": {
+      "translation": "打扫",
+      "phonetic": "[kli:n]"
+    },
+    "play": {
+      "translation": "玩",
+      "phonetic": "[plei]"
+    },
+    "visit": {
+      "translation": "看望",
+      "phonetic": "['vizit]"
+    },
+    "do": {
+      "translation": "做",
+      "phonetic": "[du:]"
+    },
+    "last weekend": {
+      "translation": "上一个周末",
+      "phonetic": ""
+    },
+    "go": {
+      "translation": "去",
+      "phonetic": "[gəu]"
+    },
+    "go to a park": {
+      "translation": "去公园",
+      "phonetic": "[gəu] [tə] [ə] [pɑ:k]"
+    },
+    "go swimming": {
+      "translation": "去游泳",
+      "phonetic": "[gəu] ['swimiŋ]"
+    },
+    "go fishing": {
+      "translation": "去钓鱼",
+      "phonetic": "[gəu] ['fiʃiŋ]"
+    },
+    "go hiking": {
+      "translation": "去郊游",
+      "phonetic": "['haikiŋ]"
+    },
+    "learn Chinese": {
+      "translation": "学汉语",
+      "phonetic": "['lə:n] ['tʃai'ni:z]"
+    },
+    "sing and dance": {
+      "translation": "唱歌和跳舞",
+      "phonetic": "['siŋ ænd 'dɑ:ns]"
+    },
+    "eat good food": {
+      "translation": "吃好吃的食物",
+      "phonetic": "[i:t] [gud] [fu:d]"
+    },
+    "take pictures": {
+      "translation": "照相",
+      "phonetic": "[teik] ['piktʃəz]"
+    },
+    "climb": {
+      "translation": "爬",
+      "phonetic": "[klaim]"
+    },
+    "buy presents": {
+      "translation": "买礼物",
+      "phonetic": "[bai] ['prezənts]"
+    },
+    "row a boat": {
+      "translation": "划船",
+      "phonetic": "[rau] [ə] [bəut]"
+    },
+    "see elephant": {
+      "translation": "看大象",
+      "phonetic": "[si:] ['elifənt]"
+    },
+    "ski": {
+      "translation": "滑雪, 雪橇",
+      "phonetic": "[ski]"
+    },
+    "go skiing": {
+      "translation": "去滑雪",
+      "phonetic": "[gəu] ['ski:iŋ]"
+    },
+    "skate": {
+      "translation": "溜冰, 滑冰",
+      "phonetic": "[skeit]"
+    },
+    "go ice-skating": {
+      "translation": "去滑冰",
+      "phonetic": "[ais 'skeit]"
+    },
+    "how": {
+      "translation": "怎么, 如何",
+      "phonetic": "[hau]"
+    },
+    "get": {
+      "translation": "到达",
+      "phonetic": "[get]"
+    },
+    "last": {
+      "translation": "上一个的, 仅余的, 留在最后的",
+      "phonetic": "[lɑ:st]"
+    }
+  }
+}
+
+
+
+
+
+
+     let currentBookIndex = localStorage.getItem('currentBookIndex') 
+        ? parseInt(localStorage.getItem('currentBookIndex')) 
+        : 0;
+    let currentWordIndex = localStorage.getItem('currentWordIndex') 
+        ? parseInt(localStorage.getItem('currentWordIndex')) 
+        : 0;
+    const bookKeys = Object.keys(books);
+    const wordKeys = () => Object.keys(books[bookKeys[currentBookIndex]]);
+    const totalWords = wordKeys().length;
+
+    const progressBar = document.getElementById('progress-bar');
+    const currentProgress = document.getElementById('current-progress');
+    const totalProgress = document.getElementById('total-progress');
+
+    progressBar.max = totalWords;
+    totalProgress.textContent = totalWords;
+	    const bingLink = document.getElementById('bingimg');
+        const wordText= document.getElementById('word');
+
+        // Update the href of the anchor link based on input
+        bingLink.addEventListener('click', () => {
+            const word = wordText.textContent.trim();
+            if (word) {
+                // Dynamically update the link to Bing Dictionary
+                bingLink.href = `https://www.bing.com/dict/search?q=${encodeURIComponent(word)}&FORM=BDVSP6&cc=cn`;
+            } else {
+                // Clear the link if no word is entered
+                bingLink.href = '#';
+            }
+        });
+    function updateWordDisplay() {
+	   
+        const currentBook = books[bookKeys[currentBookIndex]];
+        const currentWord = wordKeys()[currentWordIndex];
+        const wordData = currentBook[currentWord];
+        fetchWordData(currentWord);	
+        document.getElementById('word').textContent = currentWord;
+	    document.getElementById('coltv').textContent = "";
+        document.getElementById('phonetic').textContent = wordData.phonetic;
+		if(wordData.phonetic===""){
+		document.getElementById('phonetic').textContent = "[ ]"
+		}
+		//document.getElementById('phonetic').textContent=fetchPhonetic(currentWord);
+        document.getElementById('meaning').textContent = wordData.translation;
+		
+		// Update progress bar and label
+        progressBar.value = currentWordIndex + 1;
+        currentProgress.textContent = currentWordIndex + 1;
+        // Save the current progress
+        localStorage.setItem('currentBookIndex', currentBookIndex);
+        localStorage.setItem('currentWordIndex', currentWordIndex);
+       
+
+    }
+
+    function fetchAudioData(word, type) {
+        return "https://dict.youdao.com/dictvoice?type=" + type + "&audio=" + word;
+    }
+   async function fetchPhonetic(word) {
+    const urlString = "https://dict.youdao.com/result?word=" + word + "&lang=en";
+
+    try {
+        // Fetch the HTML page
+        const response = await fetch(urlString);
+        const htmlText = await response.text();
+
+        // Parse the HTML string
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(htmlText, 'text/html');
+
+        // Use DOM methods to select the phonetic element
+        const phoneticElement = doc.querySelector('span.phonetic');
+
+        // If the element is found, return its text content
+        if (phoneticElement) {
+            return phoneticElement.textContent;
+        } else {
+            return "Phonetic transcription not found";
+        }
+    } catch (error) {
+        console.error("Error fetching the phonetic transcription:", error);
+        return "无";
+    }
+}
+
+
+    document.getElementById('prev').addEventListener('click', () => {
+        if (currentWordIndex > 0) {
+            currentWordIndex--;
+        } else if (currentBookIndex > 0) {
+            currentBookIndex--;
+            currentWordIndex = wordKeys().length - 1;
+        }
+        updateWordDisplay();
+		const word = wordKeys()[currentWordIndex];
+       // const type = document.querySelector('input[name="accent"]:checked').value;
+	    const type=1;
+        const audioSrc = fetchAudioData(word, type);
+        const audio = new Audio(audioSrc);
+        audio.play();
+    });
+
+    document.getElementById('next').addEventListener('click', () => {
+        if (currentWordIndex < wordKeys().length - 1) {
+            currentWordIndex++;
+        } else if (currentBookIndex < bookKeys.length - 1) {
+            currentBookIndex++;
+            currentWordIndex = 0;
+        }
+        updateWordDisplay();
+		readWord();
+    });
+	
+	function readWord(){
+	const word = wordKeys()[currentWordIndex];
+       // const type = document.querySelector('input[name="accent"]:checked').value;
+	    const type=1;
+        const audioSrc = fetchAudioData(word, type);
+        const audio = new Audio(audioSrc);
+        audio.play();
+	}
+     document.getElementById('word').addEventListener('click',  readWord);
+    document.getElementById('phonetic').addEventListener('click', () => {
+        const word = wordKeys()[currentWordIndex];
+        //const type = document.querySelector('input[name="accent"]:checked').value;
+		const type =1;
+        const audioSrc = fetchAudioData(word, type);
+        const audio = new Audio(audioSrc);
+        audio.play();
+    });
+	 document.getElementById('progress-bar').addEventListener('input', (event) => {
+        currentWordIndex = event.target.value - 1;
+        updateWordDisplay();
+    });
+     document.getElementById('see-chin').addEventListener('click', () => {
+    // 获取body元素
+    const bodyElement = document.body;
+    
+    // 使用getComputedStyle获取计算后的背景颜色
+    const computedStyle = window.getComputedStyle(bodyElement);
+    const backgroundColor = computedStyle.backgroundColor;
+    
+    // 获取需要改变颜色的div
+    const meaningDiv = document.getElementById('meaning');
+
+    // 判断并改变字体颜色
+    if (meaningDiv.style.color === backgroundColor) {
+        meaningDiv.style.color = "black";
+    } else {
+        meaningDiv.style.color = backgroundColor;
+    }
+});
+	 // Handle favorites
+    document.getElementById('favorite-word').addEventListener('click', () => {
+        const currentBook = books[bookKeys[currentBookIndex]];
+        const currentWord = wordKeys()[currentWordIndex];
+        const wordData = currentBook[currentWord];
+
+        // Retrieve favorites from localStorage
+        let favorites = localStorage.getItem('favorites') 
+            ? JSON.parse(localStorage.getItem('favorites')) 
+            : [];
+
+        // Check if the word is already favorited
+        if (!favorites.some(fav => fav.word === currentWord)) {
+            favorites.push({
+                word: currentWord,
+                phonetic: wordData.phonetic,
+                translation: wordData.translation
+            });
+
+            // Save favorites back to localStorage
+            localStorage.setItem('favorites', JSON.stringify(favorites));
+            //alert(`${currentWord} 已收藏!`);
+			 document.getElementById('coltv').textContent = "已收藏";
+        } else {
+          //  alert(`${currentWord} 已经收藏过了!`);
+		  document.getElementById('coltv').textContent = "已收藏过了！";
+        }
+    });
+
+    // Navigate to favorites page
+    document.getElementById('view-favorites').addEventListener('click', () => {
+        window.location.href = 'favorites.html';
+    });
+    // Initial display
+    updateWordDisplay();
+	function toggleFullScreen() {
+            const doc = document.documentElement;
+            if (!document.fullscreenElement && !document.isFullScreenElement) { // 如果不是全屏状态
+                if (doc.requestFullscreen) {
+                    doc.requestFullscreen();
+                } else if (doc.webkitRequestFullscreen) { // Safari
+                    doc.webkitRequestFullscreen();
+                } else if (doc.msRequestFullscreen) { // IE/Edge
+                    doc.msRequestFullscreen();
+                }
+            } 
+        }
+
+        document.addEventListener('click', toggleFullScreen);
+		
+	  async function fetchWordData(word) {
+            try {
+                // Fetch the JSON data
+				 const apiUrl = "https://cdn.jsdelivr.net/gh/lyc8503/baicizhan-word-meaning-API/data/words/"+word+".json";
+                const response = await fetch(apiUrl);
+                const data = await response.json();
+
+                // Extract the sentence and its translation
+                const sentence = data.sentence;
+                const sentenceTranslation = data.sentence_trans;
+
+                // Update the webpage with the sentence and translation
+                document.querySelector('.example-sentence').textContent = sentence;
+                document.querySelector('.example-translation').textContent = sentenceTranslation;
+				setTimeout(handleClick, 1000);
+            } catch (error) {
+                console.error("Error fetching the word data:", error);
+                document.querySelector('.example-sentence').textContent = "";
+                document.querySelector('.example-translation').textContent = "";
+            }
+        }
+
+        // Fetch the word data when the page loads
+       
+</script>
+
+</body>
+</html>
